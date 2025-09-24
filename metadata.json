@@ -1,5 +1,5 @@
 {
-  "name": "XML, Android Vector, SVG sang ảnh",
-  "description": "Một tiện ích dành cho nhà phát triển để nhanh chóng chuyển đổi đồ họa vector dựa trên XML (như SVG và Android Vector Drawable) thành các định dạng ảnh raster có thể xem và tải xuống như JPG hoặc PNG.",
+  "name": "Trình chuyển đổi Vector & Raster",
+  "description": "Một tiện ích dành cho nhà phát triển để chuyển đổi đồ họa vector dựa trên XML (như SVG và Android Vector Drawable) thành các định dạng ảnh raster, và tạo gợi ý mã vector từ ảnh raster bằng AI.",
   "requestFramePermissions": []
 }
