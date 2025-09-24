@@ -1,7 +1,10 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ImageIcon } from './icons/ImageIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
+import { ZoomInIcon } from './icons/ZoomInIcon';
+import { ZoomOutIcon } from './icons/ZoomOutIcon';
+import { ResetZoomIcon } from './icons/ResetZoomIcon';
+
 
 interface ImageViewerProps {
   xmlString: string;
@@ -75,10 +78,17 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ xmlString }) => {
   const [imageUrl, setImageUrl] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
+  const handleZoomIn = useCallback(() => setZoomLevel(prev => Math.min(prev + 0.2, 3)), []);
+  const handleZoomOut = useCallback(() => setZoomLevel(prev => Math.max(prev - 0.2, 0.2)), []);
+  const handleResetZoom = useCallback(() => setZoomLevel(1), []);
+
   useEffect(() => {
+    setZoomLevel(1); // Reset zoom on new input
+
     if (xmlString.trim() === '') {
       setImageUrl('');
       setError(null);
@@ -121,6 +131,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ xmlString }) => {
     }
 
     const triggerDownload = () => {
+        // Render at original resolution for high-quality download
         canvas.width = img.naturalWidth || img.width || 300;
         canvas.height = img.naturalHeight || img.height || 300;
 
@@ -131,7 +142,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ xmlString }) => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
         
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
         const mimeType = `image/${format}`;
         const rasterUrl = canvas.toDataURL(mimeType, format === 'jpeg' ? 0.9 : 1.0);
@@ -145,44 +156,54 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ xmlString }) => {
         setIsProcessing(false);
     };
     
-    if (img.complete && img.naturalHeight > 0) {
-      triggerDownload();
-    } else {
-      img.onload = triggerDownload;
-      img.onerror = () => {
-        setError("Không thể tải ảnh SVG đã chuyển đổi để tải xuống.");
+    // Create a temporary image to load the SVG at its natural size for canvas rendering
+    const tempImg = new Image();
+    tempImg.crossOrigin = 'anonymous';
+    tempImg.onload = () => {
+        canvas.width = tempImg.naturalWidth;
+        canvas.height = tempImg.naturalHeight;
+        if(format === 'jpeg') {
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        ctx.drawImage(tempImg, 0, 0);
+        const dataUrl = canvas.toDataURL(`image/${format}`);
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `converted-image.${format}`;
+        link.click();
         setIsProcessing(false);
-      }
-    }
+    };
+    tempImg.onerror = () => {
+      setError("Không thể tải ảnh SVG để tải xuống.");
+      setIsProcessing(false);
+    };
+    tempImg.src = imageUrl;
+
   }, [imageUrl]);
 
   return (
     <div className="flex flex-col bg-slate-800 rounded-lg border border-slate-700 shadow-lg overflow-hidden h-[50vh] md:h-auto">
-      <div className="flex items-center justify-between p-3 bg-slate-900 border-b border-slate-700">
+      <div className="flex items-center justify-between p-3 bg-slate-900 border-b border-slate-700 flex-wrap gap-y-2">
         <div className="flex items-center gap-2">
             <ImageIcon className="w-5 h-5 text-slate-400"/>
             <h2 className="font-semibold text-slate-300">Xem trước ảnh</h2>
         </div>
-        <div className="flex items-center gap-2">
-            <button
-                onClick={() => handleDownload('png')}
-                disabled={!imageUrl || !!error || isProcessing}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-500 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
-            >
-                <DownloadIcon className="w-4 h-4" />
-                <span>PNG</span>
-            </button>
-            <button
-                onClick={() => handleDownload('jpeg')}
-                disabled={!imageUrl || !!error || isProcessing}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-md hover:bg-green-500 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-                <DownloadIcon className="w-4 h-4" />
-                <span>JPG</span>
-            </button>
+        <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+                <button onClick={handleZoomOut} disabled={!imageUrl || !!error || zoomLevel <= 0.2} className="p-1.5 text-slate-300 rounded-md hover:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed transition-colors" aria-label="Thu nhỏ" title="Thu nhỏ"><ZoomOutIcon className="w-4 h-4" /></button>
+                <span className="text-xs font-mono text-slate-400 w-12 text-center" title="Mức thu phóng hiện tại">{Math.round(zoomLevel * 100)}%</span>
+                <button onClick={handleZoomIn} disabled={!imageUrl || !!error || zoomLevel >= 3} className="p-1.5 text-slate-300 rounded-md hover:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed transition-colors" aria-label="Phóng to" title="Phóng to"><ZoomInIcon className="w-4 h-4" /></button>
+                <button onClick={handleResetZoom} disabled={!imageUrl || !!error || zoomLevel === 1} className="p-1.5 text-slate-300 rounded-md hover:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed transition-colors" aria-label="Đặt lại thu phóng" title="Đặt lại thu phóng"><ResetZoomIcon className="w-4 h-4" /></button>
+            </div>
+            <div className="w-px h-6 bg-slate-700"></div>
+            <div className="flex items-center gap-2">
+                <button onClick={() => handleDownload('png')} disabled={!imageUrl || !!error || isProcessing} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-500 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"><DownloadIcon className="w-4 h-4" /><span>PNG</span></button>
+                <button onClick={() => handleDownload('jpeg')} disabled={!imageUrl || !!error || isProcessing} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-md hover:bg-green-500 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-green-400"><DownloadIcon className="w-4 h-4" /><span>JPG</span></button>
+            </div>
         </div>
       </div>
-      <div className="flex-grow flex items-center justify-center p-4 bg-grid-pattern">
+      <div className="flex-grow flex items-center justify-center p-4 bg-grid-pattern overflow-auto">
         {isProcessing && <div className="text-slate-300">Đang xử lý tải xuống...</div>}
         {error && <div className="text-center text-red-400 p-4 bg-red-900/50 rounded-lg">{error}</div>}
         {!error && imageUrl && (
@@ -190,7 +211,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ xmlString }) => {
                 ref={imageRef} 
                 src={imageUrl} 
                 alt="Ảnh XML được kết xuất" 
-                className="max-w-full max-h-full object-contain"
+                className="w-full h-full object-contain transition-transform duration-150 ease-in-out"
+                style={{ transform: `scale(${zoomLevel})` }}
                 crossOrigin="anonymous"
             />
         )}
